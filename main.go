@@ -2,7 +2,6 @@ package main
 
 import (
     "database/sql"
-    "fmt"
     "log"
     "os"
     "path"
@@ -15,7 +14,7 @@ import (
 )
 
 type Todo struct {
-    ID    int
+    ID    int64
     Title string
 }
 
@@ -109,27 +108,85 @@ func main() {
     defer DB.Close()
 
     app := tview.NewApplication()
-    todoList := tview.NewTextView()
-    todoList.SetBorder(false)
-    todoList.SetBackgroundColor(tcell.ColorDefault)
+    pages := tview.NewPages()
+
+    var todos []Todo
+
+    todoList := tview.NewList()
+    todoList.
+        SetBorder(false).
+        SetBackgroundColor(tcell.ColorDefault)
 
     refreshTodos := func() {
         todoList.Clear()
-        todos, err := getTodos()
+        dbTodos, err := getTodos()
         if err != nil {
             return
         }
-        if len(todos) == 0 {
-            fmt.Fprintln(todoList, "Nothing to do!")
+        if len(dbTodos) == 0 {
+            todoList.AddItem("Nothing to do!", "", rune(0), nil).
+                SetBackgroundColor(tcell.ColorDefault)
         } else {
-            for _, todo := range todos {
-                fmt.Fprintf(todoList, "%s\n", todo.Title)
+            for _, todo := range dbTodos {
+                todoList.AddItem(todo.Title, "", rune(0), nil)
             }
         }
+        todos = dbTodos
     }
-    refreshTodos()
 
-    if err := app.SetRoot(todoList, true).Run(); err != nil {
+    textInput := tview.NewInputField()
+    textInput.SetDoneFunc(func(key tcell.Key) {
+        if key == tcell.KeyEnter {
+            createTodo(textInput.GetText())
+            refreshTodos()
+        }
+        pages.RemovePage("add item modal")
+    })
+
+    textInputPopup := tview.NewFlex().
+        SetDirection(tview.FlexRow).
+        AddItem(textInput, 0, 1, true)
+    textInputPopup.SetBorder(true).SetTitle("New Todo")
+
+    modal := tview.NewFlex().
+        AddItem(nil, 0, 1, false).
+        AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+            AddItem(nil, 0, 1, false).
+            AddItem(textInputPopup, 3, 1, true).
+            AddItem(nil, 0, 1, false), 50, 1, true).
+        AddItem(nil, 0, 1, false)
+    todoList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+        switch event.Rune() {
+        case 'j':
+            if todoList.GetCurrentItem() < todoList.GetItemCount() {
+                todoList.SetCurrentItem(todoList.GetCurrentItem() + 1)
+            }
+        case 'k':
+            if todoList.GetCurrentItem() > 0 {
+                todoList.SetCurrentItem(todoList.GetCurrentItem() - 1)
+            }
+        case 'o':
+            textInput.SetText("")
+            pages.AddPage("add item modal", modal, true, true)
+        case 'd':
+            i := todoList.GetCurrentItem()
+            deleteTodo(todos[i].ID)
+            refreshTodos()
+            if i >= len(todos) {
+                i = max(0, i-1)
+            }
+            todoList.SetCurrentItem(i)
+        }
+        return event
+    })
+
+    pages.AddPage("main", todoList, true, true)
+    pages.
+        SetBorder(false).
+        SetBackgroundColor(tcell.ColorDefault)
+
+    refreshTodos()
+    if err := app.SetRoot(pages, true).Run(); err != nil {
         log.Fatal(err)
     }
 }
