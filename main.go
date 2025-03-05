@@ -114,6 +114,10 @@ func main() {
 
     todoList := tview.NewList()
     todoList.
+        ShowSecondaryText(false).
+        SetSelectedBackgroundColor(tcell.ColorDefault).
+        SetSelectedTextColor(tcell.ColorPurple).
+        SetMainTextStyle(tcell.StyleDefault).
         SetBorder(false).
         SetBackgroundColor(tcell.ColorDefault)
 
@@ -142,11 +146,12 @@ func main() {
         }
         pages.RemovePage("add item modal")
     })
+    textInput.SetFieldBackgroundColor(tcell.ColorDefault)
 
     textInputPopup := tview.NewFlex().
         SetDirection(tview.FlexRow).
         AddItem(textInput, 0, 1, true)
-    textInputPopup.SetBorder(true).SetTitle("New Todo")
+    textInputPopup.SetBorder(true).SetTitle("New Todo").SetBackgroundColor(tcell.ColorDefault)
 
     modal := tview.NewFlex().
         AddItem(nil, 0, 1, false).
@@ -176,6 +181,8 @@ func main() {
                 i = max(0, i-1)
             }
             todoList.SetCurrentItem(i)
+        case 'q':
+            app.Stop()
         }
         return event
     })
